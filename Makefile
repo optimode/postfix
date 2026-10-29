@@ -8,15 +8,31 @@ MAKEFLAGS += --no-print-directory
 endif
 
 # -------------------------------------------------------------------------------------------------
-# Make required Variables
+# Version Variables
 # -------------------------------------------------------------------------------------------------
-VERSION =
+# The planned Postfix version (pinned in the Dockerfile) and the exact Alpine
+# base image it is built from. A release is tagged in git with Semantic
+# Versioning (e.g. v1.0.0); see the version table in README.md.
+#
+#   make build                                  # build the default versions
+#   make build POSTFIX_VERSION=3.11.8           # build a different Postfix
+#   make build ALPINE_VERSION=3.24.3            # build on a newer Alpine
+#
+POSTFIX_VERSION ?= 3.11.7
+ALPINE_VERSION  ?= 3.24.2
+
+# Backwards compatibility: `make build VERSION=x.y.z` sets the Postfix version
+ifdef VERSION
+POSTFIX_VERSION := $(VERSION)
+endif
+
+# Postfix minor version (e.g. 3.11) - used for the moving "3.11-alpine" tag
+POSTFIX_MINOR = $(shell echo $(POSTFIX_VERSION) | cut -d. -f1,2)
 
 # -------------------------------------------------------------------------------------------------
 # Make optional Variables
 # -------------------------------------------------------------------------------------------------
 ENABLE_CACHE ?= 1
-USE_BUILDKIT ?= 1
 
 # -------------------------------------------------------------------------------------------------
 # Docker required Variables
@@ -29,16 +45,21 @@ ARCH	   = linux/amd64
 # Docker optional Variables
 # -------------------------------------------------------------------------------------------------
 CACHE_FLAGS   =
-BUILDKIT_FLAGS =
 ARGS    =
 AUTHORS	= Laszlo Malina <laszlo@malina.hu>
 VENDOR	= optimode
-URL	= https://github.com/optimode/docker-postfix
-SOURCE	= https://github.com/optimode/docker-postfix
+URL	= https://github.com/optimode/postfix
+SOURCE	= https://github.com/optimode/postfix
 REVISION=$(shell git rev-parse --short HEAD)
 BUILD_DATE=$(shell date --rfc-3339=s)
-DATE=$(shell date +'%Y%m%d%H%M%S')
-IMAGE = $(VENDOR)/docker-postfix
+BASE_IMAGE = alpine:$(ALPINE_VERSION)
+OS_VERSION = Alpine $(ALPINE_VERSION)
+IMAGE = ghcr.io/$(VENDOR)/postfix
+
+# Image tags: immutable version tag + moving minor and latest tags
+TAGS = $(IMAGE):$(POSTFIX_VERSION)-alpine \
+       $(IMAGE):$(POSTFIX_MINOR)-alpine \
+       $(IMAGE):latest-alpine
 
 # Auto-detect current platform and use it as default to build for
 _PLATFORM = $(shell uname -m)
@@ -54,42 +75,44 @@ ifeq ($(ENABLE_CACHE),0)
     CACHE_FLAGS+=--no-cache
 endif
 
-BUILDKIT_FLAGS=
-ifeq ($(USE_BUILDKIT),1)
-    BUILDKIT_FLAGS+=--progress=plain
-endif
-
 # -------------------------------------------------------------------------------------------------
 # Targets
 # -------------------------------------------------------------------------------------------------
 .PHONY: build
-build: ## Build for a specific version. (Usage: make build VERSION=8.4-cli)
-
-	TAG="latest"
-	DIR="."
+build: ## Build the image. (Usage: make build [POSTFIX_VERSION=x.y.z] [ALPINE_VERSION=x.y.z])
 
 	@echo "################################################################################"
-	@echo "# Building $(IMAGE):$$TAG (platform: $(ARCH))"
+	@echo "# Building $(IMAGE):$(POSTFIX_VERSION)-alpine"
+	@echo "# Postfix $(POSTFIX_VERSION) on $(BASE_IMAGE) (platform: $(ARCH), revision: $(REVISION))"
 	@echo "################################################################################"
-	DOCKER_BUILDKIT=$(USE_BUILDKIT) docker build \
+	docker buildx build \
 		$(CACHE_FLAGS) \
-		$(BUILDKIT_FLAGS) \
 		$(ARGS) \
 		--network host \
 		--platform $(ARCH) \
+		--load \
 		--build-arg "AUTHORS=$(AUTHORS)" \
 		--build-arg "VENDOR=$(VENDOR)" \
 		--build-arg "URL=$(URL)" \
 		--build-arg "REVISION=$(REVISION)" \
 		--build-arg "SOURCE=$(SOURCE)" \
 		--build-arg "BUILD_DATE=$(BUILD_DATE)" \
-		--tag $(IMAGE):$$TAG \
-		--tag $(IMAGE):$$TAG-$(DATE) \
-		--file $$DIR/$(FILE) $$DIR
+		--build-arg "POSTFIX_VERSION=$(POSTFIX_VERSION)" \
+		--build-arg "BASE_IMAGE=$(BASE_IMAGE)" \
+		--build-arg "OS_VERSION=$(OS_VERSION)" \
+		$(foreach tag,$(TAGS),--tag $(tag)) \
+		--file $(FILE) $(DIR)
+	@echo ""
+	@echo "Built tags:"
+	@$(foreach tag,$(TAGS),echo "  $(tag)";)
+	@echo ""
+	@echo "Image metadata:"
+	@docker image inspect $(IMAGE):$(POSTFIX_VERSION)-alpine \
+		--format '  version={{index .Config.Labels "org.opencontainers.image.version"}} created={{index .Config.Labels "org.opencontainers.image.created"}} revision={{index .Config.Labels "org.opencontainers.image.revision"}} base={{index .Config.Labels "org.opencontainers.image.base.name"}}'
 
 .PHONY: push
-push:  ## Push the given version to the container registry
-	docker push $(IMAGE_NAME)
+push:  ## Push all tags of the given version to the container registry
+	@$(foreach tag,$(TAGS),echo "Pushing $(tag)"; docker push $(tag);)
 
 .PHONY: help
 help:  ## List all available make targets
@@ -98,12 +121,16 @@ help:  ## List all available make targets
 	@echo ""
 	@echo "Targets:"
 	@echo " build                Build the Docker image"
+	@echo " push                 Push all tags of the built image"
 	@echo ""
 	@echo " Optional environment variables:"
 	@echo ""
+	@echo "  POSTFIX_VERSION=x.y.z Postfix version to pin (default: $(POSTFIX_VERSION))"
+	@echo "  ALPINE_VERSION=x.y.z  Alpine base image version (default: $(ALPINE_VERSION))"
+	@echo "  VERSION=x.y.z         Alias of POSTFIX_VERSION"
 	@echo "  ENABLE_CACHE=0        Disable cache during build (default: 1)"
-	@echo "  USE_BUILDKIT=0        Disable buildkit during build (default: 1)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build"
-	@echo "  make build ENABLE_CACHE=0 USE_BUILDKIT=0"
+	@echo "  make build POSTFIX_VERSION=3.11.8 ALPINE_VERSION=3.24.3"
+	@echo "  make build push ENABLE_CACHE=0"

@@ -1,48 +1,35 @@
-ARG BASE_IMAGE=malinal/supervisor:latest
+ARG BASE_IMAGE=alpine:3.24.2
 
-FROM optimode/docker-supervisor:latest
+FROM $BASE_IMAGE
 
-ENV DEBIAN_FRONTEND="noninteractive"
+# Reproducibility: the installed Postfix version is pinned.
+# The "~=" component-wise match accepts Alpine package rebuilds of the same
+# upstream version (3.11.7-rX) but rejects 3.11.8 / 3.11.70 / 3.1.x, so a
+# later rebuild is guaranteed to install the planned Postfix version or fail
+# loudly. All four postfix packages are pinned because the dict modules
+# (postfix-lmdb.so in the main package, postfix-mysql/pcre/sqlite.so in the
+# subpackages) must share the same ABI.
+ARG POSTFIX_VERSION=3.11.7
 
-# Install packages
-RUN set -x && \
-  export DEBIAN_FRONTEND=noninteractive && \
-  apt-get update && \
-  echo 'postfix postfix/main_mailer_type select No configuration' | debconf-set-selections && \
-  apt-get install -y --no-install-recommends --no-install-suggests \
-  rsyslog \
-  postfix \
-  postfix-mysql \
-  postfix-pcre \
-  ca-certificates \
-  ssl-cert \
-  mailutils \
-  curl \
-  procps \
-  mc \
-  libdbi-perl \
-  libdbd-mysql-perl \
-  libmime-encwords-perl \
-  libmime-charset-perl \
-  libemail-valid-perl \
-  libemail-sender-perl \
-  libemail-simple-perl \
-  liblog-log4perl-perl \
-  liblog-dispatch-perl \
-  libtry-tiny-perl \
-  libgetopt-argvfile-perl \
-  libnet-dns-perl && \
-  mv /etc/postfix/main.cf.proto /etc/postfix/main.cf && \
-  groupadd -g 5000 vmail && \
-  useradd -u 5000 -g 5000 vmail -d /srv/vmail && \
-  passwd -l vmail && \
-  mkdir /srv/vmail && \
-  chown vmail:vmail /srv/vmail && \
-  make-ssl-cert generate-default-snakeoil && \
-  apt-get clean && \
-  rm -rf /var/lib/apt/lists/*
+RUN apk update && \
+    apk add \
+    cyrus-sasl \
+    cyrus-sasl-crammd5 \
+    cyrus-sasl-digestmd5 \
+    cyrus-sasl-login \
+    cyrus-sasl-scram \
+    postfix~=${POSTFIX_VERSION} \
+    postfix-mysql~=${POSTFIX_VERSION} \
+    postfix-sqlite~=${POSTFIX_VERSION} \
+    postfix-pcre~=${POSTFIX_VERSION} \
+    mailutils \
+    && rm -rf /var/cache/apk/*
 
-COPY rootfs /
+# Safety net: the build fails loudly if the planned Postfix version was not
+# installed (e.g. when the version pins are changed later by mistake)
+RUN test "$(postconf -h mail_version)" = "${POSTFIX_VERSION}" \
+    || { echo "ERROR: expected Postfix ${POSTFIX_VERSION}, got: $(postconf -h mail_version)"; exit 1; }
+
 
 ARG URL
 ARG SOURCE
@@ -50,21 +37,25 @@ ARG BUILD_DATE
 ARG AUTHORS
 ARG VENDOR
 ARG REVISION
+ARG OS_VERSION
+ARG BASE_IMAGE
+#ARG BASE_DIGEST
 
 # https://github.com/opencontainers/image-spec/blob/master/annotations.md
-LABEL "org.opencontainers.image.title"="Postfix MTA"
-LABEL "org.opencontainers.image.description"="Postfix MTA server with Supervisor"
+LABEL "org.opencontainers.image.title"="Postfix MTA Server"
+LABEL "org.opencontainers.image.description"="Postfix MTA server $POSTFIX_VERSION on $OS_VERSION"
 LABEL "org.opencontainers.image.url"="$URL"
 LABEL "org.opencontainers.image.source"="$SOURCE"
-LABEL "org.opencontainers.image.version"="latest"
+LABEL "org.opencontainers.image.version"="$POSTFIX_VERSION"
 LABEL "org.opencontainers.image.revision"="$REVISION"
 LABEL "org.opencontainers.image.licenses"="MIT"
 LABEL "org.opencontainers.image.created"="$BUILD_DATE"
 LABEL "org.opencontainers.image.authors"="$AUTHORS"
 LABEL "org.opencontainers.image.vendor"="$VENDOR"
-LABEL "org.opencontainers.image.base.name"="optimode/docker-supervisor:latest"
-LABEL "org.opencontainers.image.ref.name"="latest"
+LABEL "org.opencontainers.image.base.name"="$BASE_IMAGE"
+#LABEL "org.opencontainers.image.base.digest"="$BASE_DIGEST"
 
 VOLUME ["/data"]
+EXPOSE 25 465 587
 
-EXPOSE 25 587
+CMD ["/usr/sbin/postfix", "start-fg"]
