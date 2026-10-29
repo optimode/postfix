@@ -1,0 +1,44 @@
+# Sample docker-compose.yml for the Postfix MTA image.
+#
+# Pick the image tag from the version table in README.md, e.g.:
+#   ghcr.io/optimode/postfix:3.11.7-alpine
+#
+# Moving tags: 3.11-alpine (latest patch of 3.11), latest-alpine.
+#
+services:
+  postfix:
+    image: ghcr.io/optimode/postfix:3.11.7-alpine
+    container_name: postfix
+    hostname: mail.example.com
+    restart: unless-stopped
+    ports:
+      - "25:25"      # SMTP
+      - "465:465"    # SMTPS (TLS wrappermode)
+      - "587:587"    # submission
+    environment:
+      - TZ=Europe/Budapest
+    volumes:
+      # Postfix configuration directory (main.cf, master.cf, lookup tables).
+      # NOTE: Postfix only loads dynamic map modules (lmdb, mysql, pcre,
+      # sqlite) from root-owned dynamicmaps.cf files, so make sure the
+      # mounted files are owned by root:
+      #   chown -R root:root ./etc
+      - ./etc:/etc/postfix
+      # TLS certificates. Point smtpd_tls_cert_file / smtpd_tls_key_file in
+      # main.cf to the mounted paths, e.g. /etc/ssl/postfix/server.crt
+      - ./certs:/etc/ssl/postfix:ro
+      # Log directory. Works out of the box with:
+      #   maillog_file = /data/log/postfix.log
+      #   maillog_file_prefixes = /data/log
+      - ./log:/data/log
+      # Mail queue (persistent)
+      - postfix-spool:/var/spool/postfix
+
+    # Alternative for production hosts with loopback services (SASL/LMTP/SQL
+    # on 127.0.0.1) or multiple outbound IP addresses - as with any
+    # network_mode: host setup, the "ports" section is ignored:
+    # network_mode: host
+
+volumes:
+  postfix-spool:
+    driver: local
