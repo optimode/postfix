@@ -27,9 +27,13 @@ services:
       # TLS certificates. Point smtpd_tls_cert_file / smtpd_tls_key_file in
       # main.cf to the mounted paths, e.g. /etc/ssl/postfix/server.crt
       - ./certs:/etc/ssl/postfix:ro
-      # Log directory. Works out of the box with:
+      # Log directory. rsyslog writes /data/log/mail.log (postfix, opendkim),
+      # /data/log/auth.log (saslauthd) and /data/log/syslog (everything else)
+      # and rotates each stream automatically (50 MiB, 7 gzip archives).
+      # Alternatively postfix can log to its own file via
       #   maillog_file = /data/log/postfix.log
       #   maillog_file_prefixes = /data/log
+      # but do not combine the two - messages would be logged twice.
       - ./log:/data/log
       # Mail queue (persistent)
       - postfix-spool:/var/spool/postfix

@@ -3,10 +3,11 @@
 Alpine-based [Postfix](https://www.postfix.org/) MTA Docker image with
 LMDB/MySQL/SQLite/PCRE lookup table support and Cyrus SASL.
 
-The container runs Postfix in the foreground (`postfix start-fg`), which makes
-it suitable for Docker and Kubernetes. Configuration is mounted at
-`/etc/postfix`, the mail queue lives in `/var/spool/postfix` and logs go to
-`/data/log`.
+The container is managed by supervisord (PID 1) and runs three processes:
+Postfix (`postfix start-fg`), `saslauthd` (Cyrus SASL) and rsyslog.
+Configuration is mounted at `/etc/postfix`, the mail queue lives in
+`/var/spool/postfix` and logs go to `/data/log` where rsyslog writes and
+rotates them.
 
 ## Versions
 
@@ -19,11 +20,15 @@ built.
 |---|---|---|---|---|
 | — (not tagged) | 3.22.0 | 3.10.2 | 2025-06-30 | `ghcr.io/optimode/postfix:3.10.2-alpine` |
 | `v1.0.0` | 3.24.2 | 3.11.7 | 2026-10-29 | `ghcr.io/optimode/postfix:3.11.7-alpine` |
+| `v1.1.0` | 3.24.2 | 3.11.7 | 2026-11-07 | `ghcr.io/optimode/postfix:3.11.7-alpine` |
 
 Notes:
 
 - The `3.10.2` image predates the git tagging scheme of this repository and is
   listed for reference only.
+- The Docker image tag reflects the Postfix version, not the git tag:
+  `v1.0.0` and `v1.1.0` both rebuild the same `3.11.7-alpine` tag (v1.1.0 with
+  the supervisor-managed layout, see [CHANGELOG.md](CHANGELOG.md)).
 - Besides the exact version tag (e.g. `3.11.7-alpine`) each build produces two
   moving tags: `3.11-alpine` (latest patch level of Postfix 3.11) and
   `latest-alpine`. For reproducible deployments use the exact version tag.
@@ -32,6 +37,7 @@ Notes:
 
 ```sh
 docker run -d --name postfix \
+  -e TZ=Europe/Budapest \
   -p 25:25 -p 465:465 -p 587:587 \
   -v ./etc:/etc/postfix \
   -v ./certs:/etc/ssl/postfix:ro \
@@ -48,14 +54,28 @@ See [docker-compose.yml](docker-compose.yml) for a commented compose sample.
   lookup tables). Postfix only loads dynamic map modules (lmdb, mysql, pcre,
   sqlite) from root-owned `dynamicmaps.cf` files — make sure the mounted files
   are owned by root (`chown -R root:root ./etc`).
-- **Logging**: set `maillog_file = /data/log/postfix.log` and
-  `maillog_file_prefixes = /data/log` to log into the mounted log directory.
+- **Logging**: rsyslog writes the logs of all container processes into the
+  mounted log directory: `/data/log/mail.log` (postfix, opendkim),
+  `/data/log/auth.log` (saslauthd) and `/data/log/syslog` (everything else).
+  Each stream is rotated automatically at 50 MiB and 7 gzip-compressed
+  archives are kept. Alternatively Postfix can log to its own file via
+  `maillog_file = /data/log/postfix.log` with
+  `maillog_file_prefixes = /data/log` — but do not combine the two, or every
+  Postfix message is logged twice.
+- **Timezone**: the `tzdata` package is included, so both the `TZ`
+  environment variable (e.g. `TZ=Europe/Budapest`) and a mounted
+  `/etc/localtime` are honoured; log timestamps are written in local time.
+  If you use both, make sure they point to the same zone (`TZ` wins).
 - **TLS**: mount your certificates and point `smtpd_tls_cert_file` /
   `smtpd_tls_key_file` to the mounted paths. All three submission ports are
-  exposed: 25 (SMTP), 465 (SMTPS wrappermode), 587 (submission).
-- **SASL**: the image contains Cyrus SASL; Dovecot SASL authentication is
-  supported through `smtpd_sasl_type = dovecot` with
-  `smtpd_sasl_path = inet:...` or a mounted auth socket.
+  exposed: 25 (SMTP), 465 (SMTPS wrappermode), 587 (submission). Port 8891 is
+  exposed for an OpenDKIM milter.
+- **SASL**: the image contains Cyrus SASL and runs `saslauthd` with the
+  `sasldb` backend; Dovecot SASL authentication is supported through
+  `smtpd_sasl_type = dovecot` with `smtpd_sasl_path = inet:...` or a mounted
+  auth socket.
+- **Processes**: supervisord is PID 1 and manages postfix, saslauthd and
+  rsyslog (see `rootfs/etc/supervisor.d/smtp.ini`).
 
 ## Building
 
