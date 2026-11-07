@@ -1,4 +1,8 @@
 #!/bin/sh
+# runsv pipes only stdout to the ./log service - merge stderr into it so
+# everything ends up in the svlogd log (and not in "docker logs").
+exec 2>&1
+
 # Dependency: wait until rsyslog is up ("sv check" blocks up to 5s;
 # exiting 111 makes runsv retry this script after a short pause).
 sv check /etc/service/rsyslog >/dev/null || {

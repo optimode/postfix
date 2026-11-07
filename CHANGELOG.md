@@ -9,6 +9,14 @@ the version table in [README.md](README.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- Per-service svlogd logs now really capture each service's stderr: runsv
+  only pipes stdout to the `./log` service, so stderr ended up in
+  `docker logs` although the docs promised
+  `/data/log/<service>/` (e.g. saslauthd debug output). The run scripts
+  now merge stderr into stdout (`exec 2>&1`).
+
 ## [1.2.0] - 2026-11-07
 
 ### Added
