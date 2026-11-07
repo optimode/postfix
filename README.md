@@ -21,14 +21,16 @@ built.
 | — (not tagged) | 3.22.0 | 3.10.2 | 2025-06-30 | `ghcr.io/optimode/postfix:3.10.2-alpine` |
 | `v1.0.0` | 3.24.2 | 3.11.7 | 2026-10-29 | `ghcr.io/optimode/postfix:3.11.7-alpine` |
 | `v1.1.0` | 3.24.2 | 3.11.7 | 2026-11-07 | `ghcr.io/optimode/postfix:3.11.7-alpine` |
+| `v1.2.0` | 3.24.2 | 3.11.7 | 2026-11-07 | `ghcr.io/optimode/postfix:3.11.7-alpine` |
 
 Notes:
 
 - The `3.10.2` image predates the git tagging scheme of this repository and is
   listed for reference only.
 - The Docker image tag reflects the Postfix version, not the git tag:
-  `v1.0.0` and `v1.1.0` both rebuild the same `3.11.7-alpine` tag (v1.1.0 with
-  the supervisor-managed layout, see [CHANGELOG.md](CHANGELOG.md)).
+  `v1.0.0`, `v1.1.0` and `v1.2.0` all rebuild the same `3.11.7-alpine` tag
+  (v1.1.0 with the supervisor-managed layout, v1.2.0 with runit and
+  selectable services, see [CHANGELOG.md](CHANGELOG.md)).
 - Besides the exact version tag (e.g. `3.11.7-alpine`) each build produces two
   moving tags: `3.11-alpine` (latest patch level of Postfix 3.11) and
   `latest-alpine`. For reproducible deployments use the exact version tag.
@@ -91,13 +93,23 @@ start with environment variables:
 | `saslauthd` | on | `ENABLE_SASLAUTHD=0` |
 | `opendkim` | auto: starts when `/etc/opendkim/opendkim.conf` is present and valid (`opendkim -n`) | `ENABLE_OPENDKIM=0` (off), `ENABLE_OPENDKIM=1` (force on) |
 
-Typical profiles:
+Typical profiles (via `environment` in docker-compose.yml):
 
 - **Standalone smtp-only MTA**: no variables needed — opendkim starts as
-  soon as its config and keys are mounted at `/etc/opendkim`.
-- **Bigger ecosystem** (dovecot provides SASL, rspamd signs DKIM):
-  `ENABLE_SASLAUTHD=0 ENABLE_OPENDKIM=0`.
-- **OpenDKIM in its own container**: `ENABLE_OPENDKIM=0`.
+  soon as a valid config and keys are mounted at `/etc/opendkim`.
+- **Bigger ecosystem** (dovecot provides SASL, rspamd signs DKIM) or
+  **OpenDKIM in its own container**:
+
+```yaml
+services:
+  postfix:
+    environment:
+      - TZ=Europe/Budapest
+      # dovecot provides SASL, rspamd signs DKIM:
+      - ENABLE_SASLAUTHD=0
+      # rspamd signs DKIM, or opendkim runs in its own container:
+      - ENABLE_OPENDKIM=0
+```
 
 A disabled service is not removed: it starts in the `down` state and stays
 supervised. Services can also be controlled at runtime with `sv`:

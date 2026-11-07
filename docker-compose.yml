@@ -18,9 +18,10 @@ services:
     environment:
       - TZ=Europe/Budapest
       # Service selection (all enabled by default):
-      # opendkim starts automatically when its config is mounted below;
-      # disable it with ENABLE_OPENDKIM=0 (e.g. rspamd signs DKIM, or
-      # opendkim runs in its own container), force it with ENABLE_OPENDKIM=1.
+      # opendkim starts automatically when a valid config is mounted below
+      # (checked with "opendkim -n"); disable it with ENABLE_OPENDKIM=0
+      # (e.g. rspamd signs DKIM, or opendkim runs in its own container),
+      # force it with ENABLE_OPENDKIM=1.
       # Disable saslauthd with ENABLE_SASLAUTHD=0 (e.g. dovecot provides SASL).
       #- ENABLE_OPENDKIM=0
       #- ENABLE_SASLAUTHD=0
