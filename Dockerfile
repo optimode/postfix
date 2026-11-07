@@ -29,11 +29,11 @@ RUN apk update && \
     opendkim \
     opendkim-utils \
     mailutils \
-    supervisor \
+    runit \
     rsyslog \
     tzdata \
     && rm -rf /var/cache/apk/* \
-    &&  mkdir -p /var/log/supervisor/ /var/run/supervisor/ /var/spool/rsyslog/
+    &&  mkdir -p /var/spool/rsyslog/
 
 COPY rootfs/ /
 
@@ -71,4 +71,4 @@ LABEL "org.opencontainers.image.base.name"="$BASE_IMAGE"
 VOLUME ["/data"]
 EXPOSE 25 465 587 8891
 
-CMD ["/usr/bin/supervisord", "--nodaemon", "--configuration", "/etc/supervisord.conf"]
+CMD ["/usr/local/sbin/entrypoint.sh"]

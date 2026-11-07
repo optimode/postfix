@@ -1,0 +1,26 @@
+#!/bin/sh
+# Dependency: wait until rsyslog is up ("sv check" blocks up to 5s;
+# exiting 111 makes runsv retry this script after a short pause).
+sv check /etc/service/rsyslog >/dev/null || {
+    echo "waiting for rsyslog"
+    exit 111
+}
+
+# If the OpenDKIM milter is enabled, give it a moment to come up before
+# accepting mail. Best effort on purpose: a broken or misconfigured milter
+# must never block mail flow - postfix handles a missing milter at runtime.
+if [ ! -f /etc/service/opendkim/down ]; then
+    sv check /etc/service/opendkim >/dev/null 2>&1 \
+        || echo "opendkim is not up yet - continuing without milter startup wait"
+fi
+
+# Sanity check + create missing queue directories.
+/usr/sbin/postfix -c /etc/postfix check || exit 111
+
+# Run master directly in the foreground ("postfix start-fg" would NOT:
+# its wrapper only execs master when it is PID 1 - master(8) -i - and
+# otherwise runs "master -s" as a child. Under a supervisor the wrapper
+# would swallow the TERM signal and leave an orphaned master behind on
+# shutdown). With exec, runsv's TERM reaches master directly and Postfix
+# shuts down cleanly.
+exec /usr/libexec/postfix/master -c /etc/postfix -s

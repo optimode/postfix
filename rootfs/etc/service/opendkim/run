@@ -1,0 +1,20 @@
+#!/bin/sh
+# OpenDKIM milter. Requires its configuration and DKIM keys (mounted at
+# /etc/opendkim/). The entrypoint only enables this service when the
+# config is present (see ENABLE_OPENDKIM in entrypoint.sh).
+sv check /etc/service/rsyslog >/dev/null || {
+    echo "waiting for rsyslog"
+    exit 111
+}
+
+# The Alpine package's default BaseDirectory (normally created by the
+# OpenRC service, not present in a container).
+mkdir -p /run/opendkim
+
+# Check the configuration first so a broken setup fails visibly in the
+# service log instead of crash-looping silently.
+/usr/sbin/opendkim -n -x /etc/opendkim/opendkim.conf || exit 111
+
+# -f: do not fork (runit supervises the foreground process)
+# -l: log activity to syslog -> rsyslog -> /data/log/mail.log
+exec /usr/sbin/opendkim -f -l -x /etc/opendkim/opendkim.conf

@@ -1,0 +1,5 @@
+#!/bin/sh
+# saslauthd debug/verbose output (stderr) - it does not use syslog for this.
+# svlogd does not create the directory itself.
+mkdir -p /data/log/saslauthd
+exec svlogd -tt /data/log/saslauthd

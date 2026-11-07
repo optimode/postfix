@@ -9,6 +9,31 @@ the version table in [README.md](README.md).
 
 ## [Unreleased]
 
+### Added
+
+- OpenDKIM runs as a managed service (previously it was only installed).
+- Service selection at container start: `ENABLE_SASLAUTHD=0` and
+  `ENABLE_OPENDKIM=0` disable services; opendkim is auto-enabled when a
+  valid configuration is present at `/etc/opendkim/opendkim.conf`
+  (`ENABLE_OPENDKIM=1` forces it). A disabled service starts in the `down`
+  state and can be started at runtime with `sv up`.
+- Per-service stderr logs via runit's svlogd under `/data/log/<service>/`
+  with built-in size-based rotation.
+
+### Changed
+
+- Process management is now runit (`runsvdir`) instead of supervisord —
+  the image no longer carries a Python interpreter.
+- Postfix runs as `exec master -s` instead of `postfix start-fg`: the
+  wrapper only execs master when it is PID 1 and swallowed the shutdown
+  signal under a supervisor.
+
+### Fixed
+
+- Postfix no longer leaves an orphaned master process behind on container
+  shutdown: `docker stop` now terminates runsvdir first and then stops the
+  services gracefully via `sv exit` (rsyslog last).
+
 ## [1.1.0] - 2026-11-07
 
 ### Added

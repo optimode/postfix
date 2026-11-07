@@ -3,11 +3,11 @@
 Alpine-based [Postfix](https://www.postfix.org/) MTA Docker image with
 LMDB/MySQL/SQLite/PCRE lookup table support and Cyrus SASL.
 
-The container is managed by supervisord (PID 1) and runs three processes:
-Postfix (`postfix start-fg`), `saslauthd` (Cyrus SASL) and rsyslog.
-Configuration is mounted at `/etc/postfix`, the mail queue lives in
-`/var/spool/postfix` and logs go to `/data/log` where rsyslog writes and
-rotates them.
+The container is managed by runit (PID 1: `runsvdir`) and supervises four
+services: Postfix (as `master -s`), `saslauthd` (Cyrus SASL), OpenDKIM
+(when configured) and rsyslog. Configuration is mounted at `/etc/postfix`,
+the mail queue lives in `/var/spool/postfix` and logs go to `/data/log`
+where rsyslog writes and rotates them.
 
 ## Versions
 
@@ -61,7 +61,9 @@ See [docker-compose.yml](docker-compose.yml) for a commented compose sample.
   archives are kept. Alternatively Postfix can log to its own file via
   `maillog_file = /data/log/postfix.log` with
   `maillog_file_prefixes = /data/log` — but do not combine the two, or every
-  Postfix message is logged twice.
+  Postfix message is logged twice. Each service additionally keeps its own
+  stderr in `/data/log/<service>/` via runit's svlogd (built-in size-based
+  rotation).
 - **Timezone**: the `tzdata` package is included, so both the `TZ`
   environment variable (e.g. `TZ=Europe/Budapest`) and a mounted
   `/etc/localtime` are honoured; log timestamps are written in local time.
@@ -74,8 +76,37 @@ See [docker-compose.yml](docker-compose.yml) for a commented compose sample.
   `sasldb` backend; Dovecot SASL authentication is supported through
   `smtpd_sasl_type = dovecot` with `smtpd_sasl_path = inet:...` or a mounted
   auth socket.
-- **Processes**: supervisord is PID 1 and manages postfix, saslauthd and
-  rsyslog (see `rootfs/etc/supervisor.d/smtp.ini`).
+- **Processes**: runit (`runsvdir`) is PID 1 and supervises the services
+  under `rootfs/etc/service/` (see below).
+
+### Services
+
+runit supervises one directory per service under
+`rootfs/etc/service/`. Which services start can be controlled at container
+start with environment variables:
+
+| Service | Default | Control |
+|---|---|---|
+| `rsyslog`, `postfix` | always on | — |
+| `saslauthd` | on | `ENABLE_SASLAUTHD=0` |
+| `opendkim` | auto: starts when `/etc/opendkim/opendkim.conf` is present and valid (`opendkim -n`) | `ENABLE_OPENDKIM=0` (off), `ENABLE_OPENDKIM=1` (force on) |
+
+Typical profiles:
+
+- **Standalone smtp-only MTA**: no variables needed — opendkim starts as
+  soon as its config and keys are mounted at `/etc/opendkim`.
+- **Bigger ecosystem** (dovecot provides SASL, rspamd signs DKIM):
+  `ENABLE_SASLAUTHD=0 ENABLE_OPENDKIM=0`.
+- **OpenDKIM in its own container**: `ENABLE_OPENDKIM=0`.
+
+A disabled service is not removed: it starts in the `down` state and stays
+supervised. Services can also be controlled at runtime with `sv`:
+
+```sh
+docker exec postfix sv status /etc/service/*
+docker exec postfix sv up /etc/service/opendkim
+docker exec postfix sv down /etc/service/saslauthd
+```
 
 ## Building
 

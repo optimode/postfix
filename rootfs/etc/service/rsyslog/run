@@ -1,0 +1,4 @@
+#!/bin/sh
+# rsyslog must be up before postfix/saslauthd/opendkim: their syslog(3)
+# messages are lost if no daemon is listening on /dev/log yet.
+exec /usr/sbin/rsyslogd -n

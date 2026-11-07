@@ -1,0 +1,10 @@
+#!/bin/sh
+# Dependency: wait until rsyslog is up ("sv check" blocks up to 5s;
+# exiting 111 makes runsv retry this script after a short pause).
+sv check /etc/service/rsyslog >/dev/null || {
+    echo "waiting for rsyslog"
+    exit 111
+}
+# -d keeps saslauthd in the foreground (required by runit) and sends its
+# verbose output to stderr -> captured by the ./log service below.
+exec /usr/sbin/saslauthd -a sasldb -n 5 -d
