@@ -22,15 +22,16 @@ built.
 | `v1.0.0` | 3.24.2 | 3.11.7 | 2026-10-29 | `ghcr.io/optimode/postfix:3.11.7-alpine` |
 | `v1.1.0` | 3.24.2 | 3.11.7 | 2026-11-07 | `ghcr.io/optimode/postfix:3.11.7-alpine` |
 | `v1.2.0` | 3.24.2 | 3.11.7 | 2026-11-07 | `ghcr.io/optimode/postfix:3.11.7-alpine` |
+| `v1.2.1` | 3.24.2 | 3.11.7 | 2026-11-07 | `ghcr.io/optimode/postfix:3.11.7-alpine` |
 
 Notes:
 
 - The `3.10.2` image predates the git tagging scheme of this repository and is
   listed for reference only.
 - The Docker image tag reflects the Postfix version, not the git tag:
-  `v1.0.0`, `v1.1.0` and `v1.2.0` all rebuild the same `3.11.7-alpine` tag
-  (v1.1.0 with the supervisor-managed layout, v1.2.0 with runit and
-  selectable services, see [CHANGELOG.md](CHANGELOG.md)).
+  every release rebuilds the same `3.11.7-alpine` tag (v1.1.0 with the
+  supervisor-managed layout, v1.2.0 with runit and selectable services,
+  v1.2.1 with the svlogd stderr fix, see [CHANGELOG.md](CHANGELOG.md)).
 - Besides the exact version tag (e.g. `3.11.7-alpine`) each build produces two
   moving tags: `3.11-alpine` (latest patch level of Postfix 3.11) and
   `latest-alpine`. For reproducible deployments use the exact version tag.

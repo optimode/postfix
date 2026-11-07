@@ -9,6 +9,8 @@ the version table in [README.md](README.md).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-07
+
 ### Fixed
 
 - Per-service svlogd logs now really capture each service's stderr: runsv
@@ -127,7 +129,8 @@ at the time.
 - 2025-06-30 (`50f0512`): initial commit with the repository scaffolding
   (license, `.gitignore`).
 
-[Unreleased]: https://github.com/optimode/postfix/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/optimode/postfix/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/optimode/postfix/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/optimode/postfix/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/optimode/postfix/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/optimode/postfix/releases/tag/v1.0.0
