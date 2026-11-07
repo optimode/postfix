@@ -11,6 +11,10 @@ FROM $BASE_IMAGE
 # subpackages) must share the same ABI.
 ARG POSTFIX_VERSION=3.11.7
 
+# tzdata: Alpine's musl libc resolves the TZ environment variable and the
+# mounted /etc/localtime file via /usr/share/zoneinfo. Without tzdata the
+# zone lookup silently fails and every daemon (postfix, rsyslog, ...) logs
+# in UTC regardless of TZ or /etc/localtime.
 RUN apk update && \
     apk add \
     cyrus-sasl \
@@ -22,8 +26,17 @@ RUN apk update && \
     postfix-mysql~=${POSTFIX_VERSION} \
     postfix-sqlite~=${POSTFIX_VERSION} \
     postfix-pcre~=${POSTFIX_VERSION} \
+    opendkim \
+    opendkim-utils \
     mailutils \
-    && rm -rf /var/cache/apk/*
+    supervisor \
+    rsyslog \
+    tzdata \
+    && rm -rf /var/cache/apk/* \
+    &&  mkdir -p /var/log/supervisor/ /var/run/supervisor/ /var/spool/rsyslog/
+
+COPY rootfs/ /
+
 
 # Safety net: the build fails loudly if the planned Postfix version was not
 # installed (e.g. when the version pins are changed later by mistake)
@@ -56,6 +69,6 @@ LABEL "org.opencontainers.image.base.name"="$BASE_IMAGE"
 #LABEL "org.opencontainers.image.base.digest"="$BASE_DIGEST"
 
 VOLUME ["/data"]
-EXPOSE 25 465 587
+EXPOSE 25 465 587 8891
 
-CMD ["/usr/sbin/postfix", "start-fg"]
+CMD ["/usr/bin/supervisord", "--nodaemon", "--configuration", "/etc/supervisord.conf"]
