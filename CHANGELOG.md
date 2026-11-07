@@ -9,6 +9,39 @@ the version table in [README.md](README.md).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-07
+
+### Added
+
+- `saslauthd` (Cyrus SASL, `sasldb` backend) as a managed service alongside
+  Postfix and rsyslog.
+- OpenDKIM packages (`opendkim`, `opendkim-utils`) and port `8891` exposed for
+  a DKIM milter.
+- Automatic size-based log rotation: rsyslog rotates each log stream in
+  `/data/log` at 50 MiB and keeps 7 gzip-compressed archives
+  (`/usr/local/sbin/rsyslog-rotate`, retention count configurable per call).
+
+### Changed
+
+- The container is now managed by supervisord (PID 1) and runs three
+  processes: postfix, saslauthd and rsyslog. This reintroduces the
+  supervisor-managed layout that v1.0.0 retired in favour of a single
+  `postfix start-fg` process.
+- Logging goes through rsyslog into `/data/log/mail.log` (postfix, opendkim),
+  `/data/log/auth.log` (saslauthd) and `/data/log/syslog` (everything else)
+  instead of a single Postfix `maillog_file`. If `maillog_file` is set in
+  `main.cf`, Postfix still writes its own file — do not route the same
+  messages to rsyslog as well, or they are logged twice.
+
+### Fixed
+
+- Log timestamps are now written in local time (honouring the `TZ`
+  environment variable or a mounted `/etc/localtime`) instead of UTC: the
+  `tzdata` package was missing, so Alpine's musl libc silently fell back to
+  UTC for every daemon.
+- rsyslog no longer rate-limits the local log socket, so message bursts on a
+  busy MTA are not silently dropped.
+
 ## [1.0.0] - 2026-10-29
 
 First versioned release. The image is published as
@@ -59,5 +92,6 @@ at the time.
 - 2025-06-30 (`50f0512`): initial commit with the repository scaffolding
   (license, `.gitignore`).
 
-[Unreleased]: https://github.com/optimode/postfix/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/optimode/postfix/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/optimode/postfix/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/optimode/postfix/releases/tag/v1.0.0
