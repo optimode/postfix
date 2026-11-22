@@ -9,6 +9,42 @@ the version table in [README.md](README.md).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-22
+
+Major release: the single image is split into `postfix` and
+`postfix-auth`, and the image tag scheme changes in a backward-incompatible
+way. Update your image references when upgrading (see the migration notes
+in the Changed section below).
+
+### Added
+
+- New `ghcr.io/optimode/postfix` image: Postfix with the Cyrus SASL libraries
+  and the LMDB/MySQL/SQLite/PCRE lookup table modules only — a single
+  `postfix start-fg` process, no supervisor and no sidecar services. Built
+  from `Dockerfile`, compose sample in `compose.yml`.
+- Makefile targets for the two-image layout: `build-auth` / `push-auth` for
+  the `postfix-auth` image (built from `Dockerfile.auth`) and `build-all` /
+  `push-all` to build and push both images.
+
+### Changed
+
+- **Breaking:** the existing all-in-one image is renamed
+  `ghcr.io/optimode/postfix-auth`. It is built from `Dockerfile.auth` (the
+  former `Dockerfile`) and its compose sample is now `compose.auth.yml` (the
+  former `docker-compose.yml`); the contents are unchanged.
+- **Breaking:** image tags no longer carry the `-alpine` OS suffix, because
+  both images are Alpine-based. `3.11.7-alpine` is now `3.11.7`, `3.11-alpine`
+  is `3.11` and `latest-alpine` is `latest` (each for both images).
+- Migration notes: replace `ghcr.io/optimode/postfix:<version>-alpine`
+  references with `ghcr.io/optimode/postfix-auth:<version>` (or with
+  `ghcr.io/optimode/postfix:<version>` if you only need Postfix itself).
+- The Alpine base image is updated to `3.24.4`; the Postfix version stays
+  `3.11.7`.
+- The `postfix-auth` image now carries OCI labels that reflect the auth
+  stack: `org.opencontainers.image.title` is "Postfix MTA Server (Cyrus SASL
+  authentication)" and the description mentions saslauthd, OpenDKIM and
+  rsyslog under runit.
+
 ## [1.2.1] - 2026-11-07
 
 ### Fixed
@@ -129,7 +165,8 @@ at the time.
 - 2025-06-30 (`50f0512`): initial commit with the repository scaffolding
   (license, `.gitignore`).
 
-[Unreleased]: https://github.com/optimode/postfix/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/optimode/postfix/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/optimode/postfix/compare/v1.2.1...v2.0.0
 [1.2.1]: https://github.com/optimode/postfix/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/optimode/postfix/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/optimode/postfix/compare/v1.0.0...v1.1.0

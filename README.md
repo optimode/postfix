@@ -42,7 +42,7 @@ built.
 | `v1.1.0` | 3.24.2 | 3.11.7 | 2026-11-07 | `ghcr.io/optimode/postfix:3.11.7-alpine` | — |
 | `v1.2.0` | 3.24.2 | 3.11.7 | 2026-11-07 | `ghcr.io/optimode/postfix:3.11.7-alpine` | — |
 | `v1.2.1` | 3.24.2 | 3.11.7 | 2026-11-07 | `ghcr.io/optimode/postfix:3.11.7-alpine` | — |
-| — (unreleased) | 3.24.4 | 3.11.7 | 2026-11-22 | `ghcr.io/optimode/postfix:3.11.7` | `ghcr.io/optimode/postfix-auth:3.11.7` |
+| `v2.0.0` | 3.24.4 | 3.11.7 | 2026-11-22 | `ghcr.io/optimode/postfix:3.11.7` | `ghcr.io/optimode/postfix-auth:3.11.7` |
 
 Notes:
 
