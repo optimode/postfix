@@ -1,13 +1,14 @@
-# Sample docker-compose.yml for the Postfix MTA image.
+# Sample compose file for the ghcr.io/optimode/postfix-auth image
+# (the full auth stack: saslauthd, OpenDKIM and rsyslog under runit).
 #
 # Pick the image tag from the version table in README.md, e.g.:
-#   ghcr.io/optimode/postfix:3.11.7-alpine
+#   ghcr.io/optimode/postfix-auth:3.11.7
 #
-# Moving tags: 3.11-alpine (latest patch of 3.11), latest-alpine.
+# Moving tags: 3.11 (latest patch of 3.11), latest.
 #
 services:
   postfix:
-    image: ghcr.io/optimode/postfix:3.11.7-alpine
+    image: ghcr.io/optimode/postfix-auth:3.11.7
     container_name: postfix
     hostname: mail.example.com
     restart: unless-stopped

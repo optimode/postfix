@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.24.2
+ARG BASE_IMAGE=alpine:3.24.4
 
 FROM $BASE_IMAGE
 
@@ -26,17 +26,9 @@ RUN apk update && \
     postfix-mysql~=${POSTFIX_VERSION} \
     postfix-sqlite~=${POSTFIX_VERSION} \
     postfix-pcre~=${POSTFIX_VERSION} \
-    opendkim \
-    opendkim-utils \
     mailutils \
-    runit \
-    rsyslog \
     tzdata \
-    && rm -rf /var/cache/apk/* \
-    &&  mkdir -p /var/spool/rsyslog/
-
-COPY rootfs/ /
-
+    && rm -rf /var/cache/apk/*
 
 # Safety net: the build fails loudly if the planned Postfix version was not
 # installed (e.g. when the version pins are changed later by mistake)
@@ -69,6 +61,6 @@ LABEL "org.opencontainers.image.base.name"="$BASE_IMAGE"
 #LABEL "org.opencontainers.image.base.digest"="$BASE_DIGEST"
 
 VOLUME ["/data"]
-EXPOSE 25 465 587 8891
+EXPOSE 25 465 587
 
-CMD ["/usr/local/sbin/entrypoint.sh"]
+CMD ["/usr/sbin/postfix", "start-fg"]

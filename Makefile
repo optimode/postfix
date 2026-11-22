@@ -10,23 +10,41 @@ endif
 # -------------------------------------------------------------------------------------------------
 # Version Variables
 # -------------------------------------------------------------------------------------------------
-# The planned Postfix version (pinned in the Dockerfile) and the exact Alpine
-# base image it is built from. A release is tagged in git with Semantic
+# The planned Postfix version (pinned in the Dockerfiles) and the exact Alpine
+# base image they are built from. A release is tagged in git with Semantic
 # Versioning (e.g. v1.0.0); see the version table in README.md.
 #
-#   make build                                  # build the default versions
+# Two images are built from this repository:
+#
+#   ghcr.io/optimode/postfix       Postfix with Cyrus SASL and the
+#                                  LMDB/MySQL/SQLite/PCRE lookup tables only -
+#                                  a single "postfix start-fg" process
+#                                  (Dockerfile)
+#   ghcr.io/optimode/postfix-auth  the full authentication stack: saslauthd,
+#                                  OpenDKIM and rsyslog under runit
+#                                  (Dockerfile.auth)
+#
+# Tags carry the Postfix version only - the "-alpine" OS suffix is gone,
+# because both images are Alpine-based:
+#
+#   postfix:3.11.7    postfix:3.11    postfix:latest
+#   postfix-auth:3.11.7    postfix-auth:3.11    postfix-auth:latest
+#
+#   make build                                  # build the postfix image
+#   make build-auth                             # build the postfix-auth image
+#   make build-all                              # build both images
 #   make build POSTFIX_VERSION=3.11.8           # build a different Postfix
-#   make build ALPINE_VERSION=3.24.3            # build on a newer Alpine
+#   make build ALPINE_VERSION=3.24.5            # build on a newer Alpine
 #
 POSTFIX_VERSION ?= 3.11.7
-ALPINE_VERSION  ?= 3.24.2
+ALPINE_VERSION  ?= 3.24.4
 
 # Backwards compatibility: `make build VERSION=x.y.z` sets the Postfix version
 ifdef VERSION
 POSTFIX_VERSION := $(VERSION)
 endif
 
-# Postfix minor version (e.g. 3.11) - used for the moving "3.11-alpine" tag
+# Postfix minor version (e.g. 3.11) - used for the moving "3.11" tag
 POSTFIX_MINOR = $(shell echo $(POSTFIX_VERSION) | cut -d. -f1,2)
 
 # -------------------------------------------------------------------------------------------------
@@ -38,7 +56,6 @@ ENABLE_CACHE ?= 1
 # Docker required Variables
 # -------------------------------------------------------------------------------------------------
 DIR        = .
-FILE       = Dockerfile
 ARCH	   = linux/amd64
 
 # -------------------------------------------------------------------------------------------------
@@ -54,12 +71,18 @@ REVISION=$(shell git rev-parse --short HEAD)
 BUILD_DATE=$(shell date --rfc-3339=s)
 BASE_IMAGE = alpine:$(ALPINE_VERSION)
 OS_VERSION = Alpine $(ALPINE_VERSION)
-IMAGE = ghcr.io/$(VENDOR)/postfix
+
+# Image names
+IMAGE      = ghcr.io/$(VENDOR)/postfix
+IMAGE_AUTH = ghcr.io/$(VENDOR)/postfix-auth
 
 # Image tags: immutable version tag + moving minor and latest tags
-TAGS = $(IMAGE):$(POSTFIX_VERSION)-alpine \
-       $(IMAGE):$(POSTFIX_MINOR)-alpine \
-       $(IMAGE):latest-alpine
+TAGS_POSTFIX = $(IMAGE):$(POSTFIX_VERSION) \
+               $(IMAGE):$(POSTFIX_MINOR) \
+               $(IMAGE):latest
+TAGS_AUTH    = $(IMAGE_AUTH):$(POSTFIX_VERSION) \
+               $(IMAGE_AUTH):$(POSTFIX_MINOR) \
+               $(IMAGE_AUTH):latest
 
 # Auto-detect current platform and use it as default to build for
 _PLATFORM = $(shell uname -m)
@@ -78,11 +101,21 @@ endif
 # -------------------------------------------------------------------------------------------------
 # Targets
 # -------------------------------------------------------------------------------------------------
-.PHONY: build
-build: ## Build the image. (Usage: make build [POSTFIX_VERSION=x.y.z] [ALPINE_VERSION=x.y.z])
+# build and build-auth share one recipe; the per-image values come from
+# target-specific variables (DOCKERFILE, IMAGE_NAME, TAGS).
+build: DOCKERFILE = Dockerfile
+build: IMAGE_NAME = $(IMAGE)
+build: TAGS       = $(TAGS_POSTFIX)
+
+build-auth: DOCKERFILE = Dockerfile.auth
+build-auth: IMAGE_NAME = $(IMAGE_AUTH)
+build-auth: TAGS       = $(TAGS_AUTH)
+
+.PHONY: build build-auth
+build build-auth: ## Build the image. (Usage: make [build|build-auth] [POSTFIX_VERSION=x.y.z] [ALPINE_VERSION=x.y.z])
 
 	@echo "################################################################################"
-	@echo "# Building $(IMAGE):$(POSTFIX_VERSION)-alpine"
+	@echo "# Building $(IMAGE_NAME):$(POSTFIX_VERSION)"
 	@echo "# Postfix $(POSTFIX_VERSION) on $(BASE_IMAGE) (platform: $(ARCH), revision: $(REVISION))"
 	@echo "################################################################################"
 	docker buildx build \
@@ -101,18 +134,27 @@ build: ## Build the image. (Usage: make build [POSTFIX_VERSION=x.y.z] [ALPINE_VE
 		--build-arg "BASE_IMAGE=$(BASE_IMAGE)" \
 		--build-arg "OS_VERSION=$(OS_VERSION)" \
 		$(foreach tag,$(TAGS),--tag $(tag)) \
-		--file $(FILE) $(DIR)
+		--file $(DOCKERFILE) $(DIR)
 	@echo ""
 	@echo "Built tags:"
 	@$(foreach tag,$(TAGS),echo "  $(tag)";)
 	@echo ""
 	@echo "Image metadata:"
-	@docker image inspect $(IMAGE):$(POSTFIX_VERSION)-alpine \
+	@docker image inspect $(IMAGE_NAME):$(POSTFIX_VERSION) \
 		--format '  version={{index .Config.Labels "org.opencontainers.image.version"}} created={{index .Config.Labels "org.opencontainers.image.created"}} revision={{index .Config.Labels "org.opencontainers.image.revision"}} base={{index .Config.Labels "org.opencontainers.image.base.name"}}'
 
-.PHONY: push
-push:  ## Push all tags of the given version to the container registry
+.PHONY: build-all
+build-all: build build-auth ## Build both images (postfix and postfix-auth)
+
+push: TAGS = $(TAGS_POSTFIX)
+push-auth: TAGS = $(TAGS_AUTH)
+
+.PHONY: push push-auth
+push push-auth: ## Push all tags of the given version to the container registry
 	@$(foreach tag,$(TAGS),echo "Pushing $(tag)"; docker push $(tag);)
+
+.PHONY: push-all
+push-all: push push-auth ## Push both images (postfix and postfix-auth)
 
 .PHONY: help
 help:  ## List all available make targets
@@ -120,8 +162,12 @@ help:  ## List all available make targets
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo " build                Build the Docker image"
-	@echo " push                 Push all tags of the built image"
+	@echo " build                Build the postfix image (Dockerfile)"
+	@echo " build-auth           Build the postfix-auth image (Dockerfile.auth)"
+	@echo " build-all            Build both images"
+	@echo " push                 Push all tags of the postfix image"
+	@echo " push-auth            Push all tags of the postfix-auth image"
+	@echo " push-all             Push both images"
 	@echo ""
 	@echo " Optional environment variables:"
 	@echo ""
@@ -132,5 +178,6 @@ help:  ## List all available make targets
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build"
-	@echo "  make build POSTFIX_VERSION=3.11.8 ALPINE_VERSION=3.24.3"
+	@echo "  make build-auth push-auth"
+	@echo "  make build-all push-all POSTFIX_VERSION=3.11.8 ALPINE_VERSION=3.24.5"
 	@echo "  make build push ENABLE_CACHE=0"
